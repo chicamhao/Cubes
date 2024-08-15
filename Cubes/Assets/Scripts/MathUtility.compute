@@ -1,11 +1,13 @@
 #pragma kernel MathKernel
 #define PI 3.14159265358979323846
 
+// write position from .cs scripts
 RWStructuredBuffer<float3> _Positions;
 
 uint _Resolution;
 float _Step, _Time;
 
+// get uv(xz) values from thread identifier
 float2 GetUV (uint3 id)
 {
 	return (id.xy + 0.5) * _Step - 1.0;
@@ -13,8 +15,9 @@ float2 GetUV (uint3 id)
 
 void SetPosition(uint3 id, float3 position)
 {
-	if (id.x < _Resolution && id.y < _Resolution)
+	if (id.x < _Resolution && id.y < _Resolution) // avoid points fall outside the buffer
 	{
+		// be calculate a grid of 8x8 points
 		_Positions[id.x + id.y * _Resolution] = position;
 	}
 }
@@ -28,8 +31,11 @@ float3 Wave(float u, float v, float t)
 	return p;
 }
 
+// execute work into groups and then schedules to run independently and parallel
+// in threads, which have perform the same calculations but diff input.
+// 64 (UV 8x8) threads is a good default since it matches 2 warps per group of 32 for NVidia GPU
 [numthreads(8, 8, 1)]
-void MathKernel(uint3 id: SV_DispatchThreadID)
+void MathKernel(uint3 id: SV_DispatchThreadID) // thread identifier
 {
     float2 uv = GetUV(id);
 	SetPosition(id, Wave(uv.x, uv.y, _Time));

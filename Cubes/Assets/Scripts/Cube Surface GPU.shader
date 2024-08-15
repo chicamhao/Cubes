@@ -25,9 +25,10 @@ Shader "Custom/Cube Surface GPU"
         {
 			#if defined(UNITY_PROCEDURAL_INSTANCING_ENABLED)
 				float3 position = _Positions[unity_InstanceID];
+                // position matrix
                 unity_ObjectToWorld._m03_m13_m23_m33 = float4(position, 1.0);
-                unity_ObjectToWorld._m03_m13_m23_m33 = float4(position, 1.0);
-				unity_ObjectToWorld._m00_m11_m22 = _Step;
+                // scale matrix
+				unity_ObjectToWorld._m00_m11_m22 = _Step; 
 			#endif
 		}
 

@@ -70,22 +70,24 @@ public sealed class GPUGraph : MonoBehaviour
 
     private void UpdateGraphOnGPU()
     {
-        var step = 2f / _resolution;
+        var step = 2f / _resolution; // point size/unit scale
         _computerShader.SetInt(_resolutionId, _resolution);
         _computerShader.SetFloat(_stepId, step);
         _computerShader.SetFloat(_timeId, Time.time);
 
+        // which dnes't copy and data but links the buffer to the kernel
         _computerShader.SetBuffer(0, _positionsId, _positionsBuffer);
 
+        // fixed 8x8 group size the amouth of groups
         var groups = Mathf.CeilToInt(_resolution / 8f);
         _computerShader.Dispatch(0, groups, groups, 1);
 
         _material.SetBuffer(_positionsId, _positionsBuffer);
         _material.SetFloat(_stepId, step);
 
-        //  points should remain inside a cube with size 2,
+        // spatial bounds of points should remain inside a cube with size 2,
         // but points have a size as well, half of which could poke outside the bounds in all directions.
-        var bounds = new Bounds(Vector3.zero, Vector3.one * (2f + step));
+        var bounds = new Bounds(Vector3.zero, Vector3.one * (2f + step)); // frustum culling included here.
         Graphics.DrawMeshInstancedProcedural(_mesh, 0, _material, bounds, _positionsBuffer.count);
     }
 }
