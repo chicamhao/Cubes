@@ -1,4 +1,8 @@
-#pragma kernel MathKernel
+#pragma kernel WaveKernel
+#pragma kernel MorphingWaveKernel
+#pragma kernel RippleKernel
+#pragma kernel TwistedSphereKernel
+#pragma kernel TorusKernel
 #define PI 3.14159265358979323846
 
 // write position from .cs scripts
@@ -24,19 +28,62 @@ void SetPosition(uint3 id, float3 position)
 
 float3 Wave(float u, float v, float t)
 {
-	float3 p;
-	p.x = u;
-	p.y = sin(PI * (u + v + t));
-	p.z = v;
-	return p;
+	return float3(u, sin(PI * (u + v + t)), v);
+}
+
+float3 MorphingWave(float u, float v, float t)
+{
+	float y = sin(PI * (u + 0.5 * t));
+	y += 0.5 * sin(2.0 * PI * (v + t));
+	y += sin(PI * (u + v + 0.25f * t));
+	y *= 1.0/2.5;
+	return float3(u, y, v);
+}
+
+float3 Ripple(float u, float v, float t)
+{
+    float d = sqrt(u * u + v * v);
+    float y = sin(PI * (4.0 * d - t)); // b: period, t: horizontal shift
+    y /= 1.0 + 10.0 * d; // decreases with distance because a ripple doesn't have a fixed amplitude
+    return float3(u, y, v);
+}
+
+float3 TwistedSphere(float u, float v, float t)
+{
+    float r = 0.9 + 0.1 * sin(PI * (6.0 * u + 4.0 * v + t));
+    float s = r * cos(0.5f* PI * v);
+    return float3(
+        s * sin(PI * u),
+        r * sin(0.5 * PI * v),
+        s * cos(PI * u)
+        );
+}
+
+float3 Torus(float u, float v, float t)
+{
+    float r1 = 0.7 + 0.1 * sin(PI * (6.0 * u + 0.5 * t));
+    float r2 = 0.15 + 0.05 * sin(PI * (8.0 * u + 4.0 * v + 2.0 * t));
+    float s = r1 + r2 * cos(PI * v);
+    return float3(
+        s * sin(PI * u),
+        r2 * sin(PI * u),
+        s * cos(PI * u)
+        );
 }
 
 // execute work into groups and then schedules to run independently and parallel
 // in threads, which have perform the same calculations but diff input.
 // 64 (UV 8x8) threads is a good default since it matches 2 warps per group of 32 for NVidia GPU
-[numthreads(8, 8, 1)]
-void MathKernel(uint3 id: SV_DispatchThreadID) // thread identifier
-{
-    float2 uv = GetUV(id);
-	SetPosition(id, Wave(uv.x, uv.y, _Time));
+#define KERNEL_MATH(function) \
+[numthreads(8, 8, 1)] \
+void function##Kernel(uint3 id: SV_DispatchThreadID) \ // thread identifier
+{ \
+    float2 uv = GetUV(id); \
+	SetPosition(id, function(uv.x, uv.y, _Time)); \
 }
+
+KERNEL_MATH(Wave);
+KERNEL_MATH(MorphingWave);
+KERNEL_MATH(Ripple);
+KERNEL_MATH(TwistedSphere);
+KERNEL_MATH(Torus);

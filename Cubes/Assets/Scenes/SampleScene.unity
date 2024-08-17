@@ -389,7 +389,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _mode: 0
   _currentGraph: 0
-  _resolution: 200
+  _resolution: 500
   _functionDuration: 1
   _transitionDuration: 1
   _computerShader: {fileID: 7200000, guid: 725eba966f1a349e5a4ea31460029a6d, type: 3}

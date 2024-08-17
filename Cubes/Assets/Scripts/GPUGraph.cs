@@ -1,6 +1,4 @@
 using System;
-using System.Drawing;
-using Unity.VisualScripting;
 using UnityEngine;
 using static MathUtility;
 
@@ -10,7 +8,8 @@ public sealed class GPUGraph : MonoBehaviour
     [SerializeField] TransitionMode _mode;
     [SerializeField] GraphType _currentGraph;
 
-    [SerializeField, Range(10, 200)] int _resolution;
+    const int _maxResolution = 1000;
+    [SerializeField, Range(10, _maxResolution)] int _resolution;
     [SerializeField, Min(0f)] float _functionDuration = 1f;
     [SerializeField, Min(0f)] float _transitionDuration = 1f;
 
@@ -31,7 +30,7 @@ public sealed class GPUGraph : MonoBehaviour
 
     private void OnEnable()
     {
-        _positionsBuffer = new ComputeBuffer(_resolution * _resolution, 3 * 4);
+        _positionsBuffer = new ComputeBuffer(_maxResolution * _maxResolution, 3 * 4);
     }
 
     private void OnDisable()
@@ -76,11 +75,12 @@ public sealed class GPUGraph : MonoBehaviour
         _computerShader.SetFloat(_timeId, Time.time);
 
         // which dnes't copy and data but links the buffer to the kernel
-        _computerShader.SetBuffer(0, _positionsId, _positionsBuffer);
+        var kernelIndex = (int)_currentGraph;
+        _computerShader.SetBuffer(kernelIndex, _positionsId, _positionsBuffer);
 
         // fixed 8x8 group size the amouth of groups
         var groups = Mathf.CeilToInt(_resolution / 8f);
-        _computerShader.Dispatch(0, groups, groups, 1);
+        _computerShader.Dispatch(kernelIndex, groups, groups, 1);
 
         _material.SetBuffer(_positionsId, _positionsBuffer);
         _material.SetFloat(_stepId, step);
@@ -88,6 +88,6 @@ public sealed class GPUGraph : MonoBehaviour
         // spatial bounds of points should remain inside a cube with size 2,
         // but points have a size as well, half of which could poke outside the bounds in all directions.
         var bounds = new Bounds(Vector3.zero, Vector3.one * (2f + step)); // frustum culling included here.
-        Graphics.DrawMeshInstancedProcedural(_mesh, 0, _material, bounds, _positionsBuffer.count);
+        Graphics.DrawMeshInstancedProcedural(_mesh, 0, _material, bounds, _resolution * _resolution);
     }
 }
