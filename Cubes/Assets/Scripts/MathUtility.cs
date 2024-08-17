@@ -14,12 +14,14 @@ public static class MathUtility
     }
     static readonly GraphFunc[] _funcs = { Wave, MorphingWave, Ripple, TwistedSphere, Torus };
 
-    public static GraphFunc GetGraphFunc(GraphType type) => _funcs[(int)type];
+    public static int GraphTypeCount
+        => _funcs.Length;
+
+    public static GraphFunc GetGraphFunc(GraphType type)
+        => _funcs[(int)type];
 
     public static GraphType GetNextGraphFrom(GraphType current)
-    {
-        return (GraphType)Repeat((float)current + 1, _funcs.Length - 1);
-    }
+        => (GraphType)Repeat((float)current + 1, _funcs.Length);    
 
     public static GraphType GetRandomFrom(GraphType current)
     {
@@ -76,7 +78,7 @@ public static class MathUtility
         var s = r1 + r2 * Cos(PI * v);
         return new Vector3(
             s * Sin(PI * u),
-            r2 * Sin(PI * u),
+            r2 * Sin(PI * v),
             s * Cos(PI * u)
             );
     }

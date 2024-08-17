@@ -1,15 +1,40 @@
 #pragma kernel WaveKernel
+#pragma kernel WaveToMorphingWaveKernel
+#pragma kernel WaveToRippleKernel
+#pragma kernel WaveToTwistedSphereKernel
+#pragma kernel WaveToTorusKernel
+
+#pragma kernel MorphingWaveToWaveKernel
 #pragma kernel MorphingWaveKernel
+#pragma kernel MorphingWaveToRippleKernel
+#pragma kernel MorphingWaveToTwistedSphereKernel
+#pragma kernel MorphingWaveToTorusKernel
+
+#pragma kernel RippleToWaveKernel
+#pragma kernel RippleToMorphingWaveKernel
 #pragma kernel RippleKernel
+#pragma kernel RippleToTwistedSphereKernel
+#pragma kernel RippleToTorusKernel
+
+#pragma kernel TwistedSphereToWaveKernel
+#pragma kernel TwistedSphereToMorphingWaveKernel
+#pragma kernel TwistedSphereToRippleKernel
 #pragma kernel TwistedSphereKernel
+#pragma kernel TwistedSphereToTorusKernel
+
+#pragma kernel TorusToWaveKernel
+#pragma kernel TorusToMorphingWaveKernel
+#pragma kernel TorusToRippleKernel
+#pragma kernel TorusToTwistedSphereKernel
 #pragma kernel TorusKernel
+
 #define PI 3.14159265358979323846
 
 // write position from .cs scripts
 RWStructuredBuffer<float3> _Positions;
 
 uint _Resolution;
-float _Step, _Time;
+float _Step, _Time, _TransitionProgress;
 
 // get uv(xz) values from thread identifier
 float2 GetUV (uint3 id)
@@ -35,7 +60,7 @@ float3 MorphingWave(float u, float v, float t)
 {
 	float y = sin(PI * (u + 0.5 * t));
 	y += 0.5 * sin(2.0 * PI * (v + t));
-	y += sin(PI * (u + v + 0.25f * t));
+	y += sin(PI * (u + v + 0.25 * t));
 	y *= 1.0/2.5;
 	return float3(u, y, v);
 }
@@ -50,8 +75,8 @@ float3 Ripple(float u, float v, float t)
 
 float3 TwistedSphere(float u, float v, float t)
 {
-    float r = 0.9 + 0.1 * sin(PI * (6.0 * u + 4.0 * v + t));
-    float s = r * cos(0.5f* PI * v);
+    float r = 0.9 + 0.1 * sin(PI * (12.0 * u + 8.0 * v + t)); // frequency of the twists
+    float s = r * cos(0.5 * PI * v);
     return float3(
         s * sin(PI * u),
         r * sin(0.5 * PI * v),
@@ -61,12 +86,12 @@ float3 TwistedSphere(float u, float v, float t)
 
 float3 Torus(float u, float v, float t)
 {
-    float r1 = 0.7 + 0.1 * sin(PI * (6.0 * u + 0.5 * t));
-    float r2 = 0.15 + 0.05 * sin(PI * (8.0 * u + 4.0 * v + 2.0 * t));
+    float r1 = 0.7 + 0.1 * sin(PI * (8.0 * u + 0.5 * t));
+    float r2 = 0.15 + 0.05 * sin(PI * (16.0 * u + 8.0 * v + 3.0 * t));
     float s = r1 + r2 * cos(PI * v);
     return float3(
         s * sin(PI * u),
-        r2 * sin(PI * u),
+        r2 * sin(PI * v),
         s * cos(PI * u)
         );
 }
@@ -82,8 +107,46 @@ void function##Kernel(uint3 id: SV_DispatchThreadID) \ // thread identifier
 	SetPosition(id, function(uv.x, uv.y, _Time)); \
 }
 
+// morphing 
+#define KERNEL_MORPH_MATH(functionA, functionB) \
+[numthreads(8, 8, 1)] \
+void functionA##To##functionB##Kernel (uint3 id: SV_DispatchThreadID) \
+{ \
+	float2 uv = GetUV(id); \
+	float3 position = lerp( \
+		functionA(uv.x, uv.y, _Time), functionB(uv.x, uv.y, _Time), \
+		_TransitionProgress \
+	); \
+	SetPosition(id, position); \
+}
+
 KERNEL_MATH(Wave);
 KERNEL_MATH(MorphingWave);
 KERNEL_MATH(Ripple);
 KERNEL_MATH(TwistedSphere);
 KERNEL_MATH(Torus);
+
+KERNEL_MORPH_MATH(Wave, MorphingWave);
+KERNEL_MORPH_MATH(Wave, Ripple);
+KERNEL_MORPH_MATH(Wave, TwistedSphere);
+KERNEL_MORPH_MATH(Wave, Torus);
+
+KERNEL_MORPH_MATH(MorphingWave, Wave);
+KERNEL_MORPH_MATH(MorphingWave, Ripple);
+KERNEL_MORPH_MATH(MorphingWave, TwistedSphere);
+KERNEL_MORPH_MATH(MorphingWave, Torus);
+
+KERNEL_MORPH_MATH(Ripple, Wave);
+KERNEL_MORPH_MATH(Ripple, MorphingWave);
+KERNEL_MORPH_MATH(Ripple, TwistedSphere);
+KERNEL_MORPH_MATH(Ripple, Torus);
+
+KERNEL_MORPH_MATH(TwistedSphere, Wave);
+KERNEL_MORPH_MATH(TwistedSphere, MorphingWave);
+KERNEL_MORPH_MATH(TwistedSphere, Ripple);
+KERNEL_MORPH_MATH(TwistedSphere, Torus);
+
+KERNEL_MORPH_MATH(Torus, Wave);
+KERNEL_MORPH_MATH(Torus, MorphingWave);
+KERNEL_MORPH_MATH(Torus, Ripple);
+KERNEL_MORPH_MATH(Torus, TwistedSphere);

@@ -13,7 +13,7 @@ public sealed class GPUGraph : MonoBehaviour
     [SerializeField, Min(0f)] float _functionDuration = 1f;
     [SerializeField, Min(0f)] float _transitionDuration = 1f;
 
-    [SerializeField] ComputeShader _computerShader;
+    [SerializeField] ComputeShader _computeShader;
     [SerializeField] Material _material;
     [SerializeField] Mesh _mesh;
 
@@ -21,6 +21,7 @@ public sealed class GPUGraph : MonoBehaviour
     static readonly int _resolutionId = Shader.PropertyToID("_Resolution");
     static readonly int _stepId = Shader.PropertyToID("_Step");
     static readonly int _timeId = Shader.PropertyToID("_Time");
+    static readonly int _transitionProgressId = Shader.PropertyToID("_TransitionProgress");
 
     GraphType _transitionGraph;
     float _duration;
@@ -70,17 +71,26 @@ public sealed class GPUGraph : MonoBehaviour
     private void UpdateGraphOnGPU()
     {
         var step = 2f / _resolution; // point size/unit scale
-        _computerShader.SetInt(_resolutionId, _resolution);
-        _computerShader.SetFloat(_stepId, step);
-        _computerShader.SetFloat(_timeId, Time.time);
+        _computeShader.SetInt(_resolutionId, _resolution);
+        _computeShader.SetFloat(_stepId, step);
+        _computeShader.SetFloat(_timeId, Time.time);
 
-        // which dnes't copy and data but links the buffer to the kernel
-        var kernelIndex = (int)_currentGraph;
-        _computerShader.SetBuffer(kernelIndex, _positionsId, _positionsBuffer);
+        if (_transiting) // morph
+        {
+            _computeShader.SetFloat(
+                _transitionProgressId,
+                Mathf.SmoothStep(0f, 1f, _duration / _transitionDuration)
+            );
+        }
+
+        // which dones't copy and data but links the buffer to the kernel
+        var kernelIndex = (int)_currentGraph
+            + (int)(_transiting ? _transitionGraph : _currentGraph) * GraphTypeCount;
+        _computeShader.SetBuffer(kernelIndex, _positionsId, _positionsBuffer);
 
         // fixed 8x8 group size the amouth of groups
         var groups = Mathf.CeilToInt(_resolution / 8f);
-        _computerShader.Dispatch(kernelIndex, groups, groups, 1);
+        _computeShader.Dispatch(kernelIndex, groups, groups, 1);
 
         _material.SetBuffer(_positionsId, _positionsBuffer);
         _material.SetFloat(_stepId, step);
