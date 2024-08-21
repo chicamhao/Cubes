@@ -4,7 +4,7 @@ using static MathUtility;
 
 public sealed class GPUGraph : MonoBehaviour
 {
-    enum TransitionMode { Cycle, Random };
+    enum TransitionMode { Cycle, Random, None };
     [SerializeField] TransitionMode _mode;
     [SerializeField] GraphType _currentGraph;
 
@@ -61,6 +61,7 @@ public sealed class GPUGraph : MonoBehaviour
             {
                 TransitionMode.Cycle => GetNextGraphFrom(_currentGraph),
                 TransitionMode.Random => GetRandomFrom(_currentGraph),
+                TransitionMode.None => _currentGraph,
                 _ => throw new NotImplementedException()
             };
         }

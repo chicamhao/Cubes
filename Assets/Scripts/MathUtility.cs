@@ -40,14 +40,15 @@ public static class MathUtility
 
     private static Vector3 Wave(float u, float v, float t)
     {
+        // increasing period according to uv and time
         return new Vector3(u, Sin(PI * (u + v + t)), v);
     }
 
     private static Vector3 MorphingWave(float u, float v, float t)
     {
         var y = Sin((u + 0.5f * t) * PI);
-        y += 0.5f * Sin(2f * PI * (v + t));
-        y += Sin(PI * (u + v + 0.25f * t));
+        y += 0.5f * Sin(2f * PI * (v + t)); // middle changes
+        y += Sin(PI * (u + v + 0.25f * t)); // external changes
         y *= 1f / 2.5f;
         return new Vector3(u, y, v);
     }
