@@ -8,8 +8,11 @@ public sealed class Fractal : MonoBehaviour
     struct FractalPart
     {
         public Vector3 Direction;
+        public Vector3 WorldPosition;
+
         public Quaternion Rotation;
-        public Transform Transform;
+        public Quaternion WorldRotation;
+        public float SpinAngle;
     }
 
     static readonly Vector3[] _directions =
@@ -31,84 +34,114 @@ public sealed class Fractal : MonoBehaviour
     [SerializeField, Range(1, 8)] byte _depth = 4;
 
     private FractalPart[][] _parts;
+    Matrix4x4[][] _matrices;
+    ComputeBuffer[] _matricesBuffers;
 
-
-    private void Awake()
+    private void OnEnable()
     {
-        // initialize.
         _parts = new FractalPart[_depth][];
+        _matrices = new Matrix4x4[_depth][];
+        _matricesBuffers = new ComputeBuffer[_depth];
+        var stride = 16 * 4; // 4x4 = 16 floats
 
-        var length = 1;
-        for (var i = 0; i < _parts.Length; i++)
+        for (int i = 0, length = 1 ; i < _parts.Length; i++, length *= 5)
         {
             _parts[i] = new FractalPart[length];
-            length *= 5;
+            _matrices[i] = new Matrix4x4[length];
+            _matricesBuffers[i] = new ComputeBuffer(length, stride);
         }
 
         // root
-        var scale = 1f;
-        _parts[0][0] = CreatePart(0, 0, scale);
+        var rootPart = CreatePart(0);
+        _parts[0][0] = rootPart;
+        _matrices[0][0] = Matrix4x4.TRS(
+            rootPart.WorldPosition, rootPart.WorldRotation, Vector3.one);
 
         for (var i = 1; i < _parts.Length; i++) // level 
         {
-            scale *= 0.5f;
             for(var j = 0; j < _parts[i].Length; j += 5) // child
             {
                 for (var z = 0; z < 5; z++)
                 {
-                    _parts[i][j + z] = CreatePart(i, z, scale);
+                    _parts[i][j + z] = CreatePart(z);
                 }
             }
         }
     }
 
-    private FractalPart CreatePart(int levelIndex, int childIndex, float scale)
+    private void OnDisable()
     {
-        var go = new GameObject("Fractal part " + levelIndex + " C" + childIndex);
-        go.transform.SetParent(transform, false);
-        go.transform.localScale = Vector3.one * scale;
+        foreach(var m in _matricesBuffers)
+        {
+            m.Release();
+        }
 
-        go.AddComponent<MeshFilter>().mesh = _mesh;
-        go.AddComponent<MeshRenderer>().material = _material;
+        _parts = null;
+        _matrices = null;
+        _matricesBuffers = null;
+    }
 
+    private void OnValidate()
+    {
+        if (_parts != null && enabled)
+        {
+            OnDisable();
+            OnEnable();
+        }
+    }
+
+    private FractalPart CreatePart(int childIndex)
+    {
         return new FractalPart()
         {
             Direction = _directions[childIndex],
             Rotation = _rotations[childIndex],
-            Transform = go.transform
         };
     }
 
     private void Update()
     {
-        var deltaRotation = Quaternion.Euler(0f, 22.5f * Time.deltaTime, 0f);
+        var spinAngleDelta = 22.5f * Time.deltaTime;
 
         var root = _parts[0][0];
-        root.Rotation *= deltaRotation;
-        root.Transform.localRotation = root.Rotation;
+        root.SpinAngle += spinAngleDelta;
+        root.WorldRotation = root.Rotation * Quaternion.Euler(0f, root.SpinAngle, 0f);
         _parts[0][0] = root;
 
+        float scale = 1f;
         for (var i = 1; i < _parts.Length; i++) // level 
         {
+            scale *= 0.5f;
             for (var j = 0; j < _parts[i].Length; j ++) // child
             {
-                var parentTransform = _parts[i - 1][j / 5].Transform;
+                var parentTransform = _parts[i - 1][j / 5];
                 var part = _parts[i][j];
 
                 // animation
-                part.Rotation *= deltaRotation;
+                part.SpinAngle += spinAngleDelta;
 
                 // transform
-                part.Transform.SetLocalPositionAndRotation(
-                    // part position relaive to its designated parent
-                    parentTransform.localPosition +
-                    parentTransform.transform.localRotation * // since rotation also affect the direction of its offset
-                        (1.5f * part.Transform.localScale.x * part.Direction),
+                part.WorldRotation = 
                     // rotation be stacked via multication of quaternions
-                    parentTransform.localRotation * part.Rotation);
+                    parentTransform.WorldRotation * (part.Rotation * Quaternion.Euler(0f, part.SpinAngle, 0f));
+
+                // part position relaive to its designated parent
+                part.WorldPosition = parentTransform.WorldPosition +
+                    // since rotation also affect the direction of its offset
+                    parentTransform.WorldRotation * (1.5f * scale * part.Direction); 
 
                 _parts[i][j] = part;
+
+                _matrices[i][j] = Matrix4x4.TRS(
+                    part.WorldPosition, part.WorldRotation, scale * Vector3.one);
+
             }
+        }
+
+        // upload the matrices to GPU
+        for (var i = 0; i < _matricesBuffers.Length; i++)
+        {
+            _matricesBuffers[i].SetData(_matrices[i]);
         }
     }
 }
