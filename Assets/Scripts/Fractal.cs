@@ -36,9 +36,15 @@ public sealed class Fractal : MonoBehaviour
     private FractalPart[][] _parts;
     Matrix4x4[][] _matrices;
     ComputeBuffer[] _matricesBuffers;
+    static readonly int _matricesId = Shader.PropertyToID("_Matrices");
+
+    // for drawing multiple objects with the same material, but slightly diff properties
+    static MaterialPropertyBlock _propertyBlock;
 
     private void OnEnable()
     {
+        _propertyBlock ??= new();
+
         _parts = new FractalPart[_depth][];
         _matrices = new Matrix4x4[_depth][];
         _matricesBuffers = new ComputeBuffer[_depth];
@@ -54,9 +60,8 @@ public sealed class Fractal : MonoBehaviour
         // root
         var rootPart = CreatePart(0);
         _parts[0][0] = rootPart;
-        _matrices[0][0] = Matrix4x4.TRS(
-            rootPart.WorldPosition, rootPart.WorldRotation, Vector3.one);
 
+        // init part's directions and rotations
         for (var i = 1; i < _parts.Length; i++) // level 
         {
             for(var j = 0; j < _parts[i].Length; j += 5) // child
@@ -103,12 +108,19 @@ public sealed class Fractal : MonoBehaviour
     {
         var spinAngleDelta = 22.5f * Time.deltaTime;
 
+        // calculate root transform matrix
         var root = _parts[0][0];
         root.SpinAngle += spinAngleDelta;
-        root.WorldRotation = root.Rotation * Quaternion.Euler(0f, root.SpinAngle, 0f);
+        root.WorldRotation = transform.rotation * (root.Rotation * Quaternion.Euler(0f, root.SpinAngle, 0f));
+        root.WorldPosition = transform.position;
         _parts[0][0] = root;
 
-        float scale = 1f;
+        float objectScale = transform.lossyScale.x;
+        _matrices[0][0] = Matrix4x4.TRS(
+            root.WorldPosition, root.WorldRotation, Vector3.one);
+
+        // caculate parts transform matrices
+        float scale = objectScale;
         for (var i = 1; i < _parts.Length; i++) // level 
         {
             scale *= 0.5f;
@@ -139,9 +151,13 @@ public sealed class Fractal : MonoBehaviour
         }
 
         // upload the matrices to GPU
-        for (var i = 0; i < _matricesBuffers.Length; i++)
+        var bounds = new Bounds(root.WorldPosition, 3f * objectScale * Vector3.one);
+        for (var i = 0; i < _matricesBuffers.Length; i++) // level 
         {
-            _matricesBuffers[i].SetData(_matrices[i]);
+            var buffer = _matricesBuffers[i];
+            buffer.SetData(_matrices[i]);
+            _propertyBlock.SetBuffer(_matricesId, buffer);
+            Graphics.DrawMeshInstancedProcedural(_mesh, 0, _material, bounds, buffer.count, _propertyBlock);
         }
     }
 }
