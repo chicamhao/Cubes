@@ -1,19 +1,10 @@
+using Unity.Collections;
 using UnityEngine;
 
 public sealed class Fractal : MonoBehaviour
 {
     [SerializeField] Mesh _mesh;
     [SerializeField] Material _material;
-
-    struct FractalPart
-    {
-        public Vector3 Direction;
-        public Vector3 WorldPosition;
-
-        public Quaternion Rotation;
-        public Quaternion WorldRotation;
-        public float SpinAngle;
-    }
 
     static readonly Vector3[] _directions =
     {
@@ -33,8 +24,8 @@ public sealed class Fractal : MonoBehaviour
 
     [SerializeField, Range(1, 8)] byte _depth = 4;
 
-    private FractalPart[][] _parts;
-    Matrix4x4[][] _matrices;
+    private NativeArray<FractalPart>[] _parts;
+    private NativeArray<Matrix4x4>[] _matrices;
     ComputeBuffer[] _matricesBuffers;
     static readonly int _matricesId = Shader.PropertyToID("_Matrices");
 
@@ -45,15 +36,15 @@ public sealed class Fractal : MonoBehaviour
     {
         _propertyBlock ??= new();
 
-        _parts = new FractalPart[_depth][];
-        _matrices = new Matrix4x4[_depth][];
+        _parts = new NativeArray<FractalPart>[_depth];
+        _matrices = new NativeArray<Matrix4x4>[_depth];
         _matricesBuffers = new ComputeBuffer[_depth];
         var stride = 16 * 4; // 4x4 = 16 floats
 
         for (int i = 0, length = 1 ; i < _parts.Length; i++, length *= 5)
         {
-            _parts[i] = new FractalPart[length];
-            _matrices[i] = new Matrix4x4[length];
+            _parts[i] = new NativeArray<FractalPart>(length, Allocator.Persistent);
+            _matrices[i] = new NativeArray<Matrix4x4>(length, Allocator.Persistent);
             _matricesBuffers[i] = new ComputeBuffer(length, stride);
         }
 
@@ -76,9 +67,11 @@ public sealed class Fractal : MonoBehaviour
 
     private void OnDisable()
     {
-        foreach(var m in _matricesBuffers)
+        for (var i = 0; i < _matricesBuffers.Length; i++)
         {
-            m.Release();
+            _matricesBuffers[i].Release();
+            _parts[i].Dispose();
+            _matrices[i].Dispose();
         }
 
         _parts = null;
@@ -159,5 +152,15 @@ public sealed class Fractal : MonoBehaviour
             _propertyBlock.SetBuffer(_matricesId, buffer);
             Graphics.DrawMeshInstancedProcedural(_mesh, 0, _material, bounds, buffer.count, _propertyBlock);
         }
+    }
+
+    struct FractalPart
+    {
+        public Vector3 Direction;
+        public Vector3 WorldPosition;
+
+        public Quaternion Rotation;
+        public Quaternion WorldRotation;
+        public float SpinAngle;
     }
 }
