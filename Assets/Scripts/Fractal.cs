@@ -1,5 +1,8 @@
+using Unity.Burst;
 using Unity.Collections;
+using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 public sealed class Fractal : MonoBehaviour
 {
@@ -20,7 +23,6 @@ public sealed class Fractal : MonoBehaviour
         Quaternion.identity, Quaternion.Euler(0f, 0f, -90f), Quaternion.Euler(0f, 0f, 90f),
         Quaternion.Euler(90f, 0f, 0f), Quaternion.Euler(-90f, 0f, 0f)
     };
-
 
     [SerializeField, Range(1, 8)] byte _depth = 4;
 
@@ -43,6 +45,7 @@ public sealed class Fractal : MonoBehaviour
 
         for (int i = 0, length = 1 ; i < _parts.Length; i++, length *= 5)
         {
+            // persistent cause using the same arrays every frame
             _parts[i] = new NativeArray<FractalPart>(length, Allocator.Persistent);
             _matrices[i] = new NativeArray<Matrix4x4>(length, Allocator.Persistent);
             _matricesBuffers[i] = new ComputeBuffer(length, stride);
@@ -117,31 +120,20 @@ public sealed class Fractal : MonoBehaviour
         for (var i = 1; i < _parts.Length; i++) // level 
         {
             scale *= 0.5f;
-            for (var j = 0; j < _parts[i].Length; j ++) // child
+            var jobHandle = new UpdateFactalLevelJob
             {
-                var parentTransform = _parts[i - 1][j / 5];
-                var part = _parts[i][j];
-
-                // animation
-                part.SpinAngle += spinAngleDelta;
-
-                // transform
-                part.WorldRotation = 
-                    // rotation be stacked via multication of quaternions
-                    parentTransform.WorldRotation * (part.Rotation * Quaternion.Euler(0f, part.SpinAngle, 0f));
-
-                // part position relaive to its designated parent
-                part.WorldPosition = parentTransform.WorldPosition +
-                    // since rotation also affect the direction of its offset
-                    parentTransform.WorldRotation * (1.5f * scale * part.Direction); 
-
-                _parts[i][j] = part;
-
-                _matrices[i][j] = Matrix4x4.TRS(
-                    part.WorldPosition, part.WorldRotation, scale * Vector3.one);
-
+                SpinAngleDelta = spinAngleDelta,
+                Scale = scale,
+                Parents = _parts[i - 1],
+                Parts = _parts[i],
+                Matrices = _matrices[i]
             }
+            // schedule the job to explicitly invoke Execute for every interation (child for loop)
+            .Schedule(_parts[i].Length, default);
+
+            jobHandle.Complete(); // delay Execute until the job is finished;
         }
+
 
         // upload the matrices to GPU
         var bounds = new Bounds(root.WorldPosition, 3f * objectScale * Vector3.one);
@@ -162,5 +154,44 @@ public sealed class Fractal : MonoBehaviour
         public Quaternion Rotation;
         public Quaternion WorldRotation;
         public float SpinAngle;
+    }
+
+    [BurstCompile(CompileSynchronously = true)]
+    struct UpdateFactalLevelJob : IJobFor
+    {
+        public float SpinAngleDelta;
+        public float Scale;
+
+        [ReadOnly]
+        public NativeArray<FractalPart> Parents;
+
+        public NativeArray<FractalPart> Parts;
+
+        [WriteOnly]
+        public NativeArray<Matrix4x4> Matrices;
+
+        public void Execute(int i)
+        {
+            var parentTransform = Parents[i / 5];
+            var part = Parts[i];
+
+            // animation
+            part.SpinAngle += SpinAngleDelta;
+
+            // transform
+            part.WorldRotation =
+                // rotation be stacked via multication of quaternions
+                parentTransform.WorldRotation * (part.Rotation * Quaternion.Euler(0f, part.SpinAngle, 0f));
+
+            // part position relaive to its designated parent
+            part.WorldPosition = parentTransform.WorldPosition +
+            // since rotation also affect the direction of its offset
+                parentTransform.WorldRotation * (1.5f * Scale * part.Direction);
+
+            Parts[i] = part;
+
+            Matrices[i] = Matrix4x4.TRS(
+                part.WorldPosition, part.WorldRotation, Scale * Vector3.one);
+        }
     }
 }
