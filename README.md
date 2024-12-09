@@ -1,7 +1,8 @@
 My first step in getting acquainted with procedural geometry and parallel programming.
 
-# Demo
 Rendering dynamic mathematical mathematical surfaces  at runtime.
+
+# Demo
  - Procedural GPU-based approach using compute shader:
 
 https://github.com/user-attachments/assets/8b94e4ea-ff0d-48b7-87e3-fe8ace73759e
