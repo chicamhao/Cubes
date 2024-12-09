@@ -1,8 +1,15 @@
-The first step is an introduction to procedural geometry and GPU's parallel programming.
+My first step in getting acquainted with procedural geometry and parallel programming.
 
-References: 
-https://catlikecoding.com/unity/tutorials/
+# Demo
+Rendering dynamic mathematical mathematical surfaces  at runtime.
+ - Procedural GPU-based approach using compute shader:
+
+https://github.com/user-attachments/assets/8b94e4ea-ff0d-48b7-87e3-fe8ace73759e
+
+ - Procedural CPU-based approach using job system:
+
+https://github.com/user-attachments/assets/e5927a56-277d-45e1-ac56-d71f58c81e72
 
 
-https://github.com/user-attachments/assets/52173b7b-aa49-4dc5-b7c3-348bbe596141
-
+# References: 
+catlikecoding, Jasper Flick. 
