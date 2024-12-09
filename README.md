@@ -1,6 +1,6 @@
 My first step in getting acquainted with procedural geometry and parallel programming.
 
-Rendering dynamic mathematical mathematical surfaces  at runtime.
+Rendering dynamic mathematical surfaces, up to millions of meshes at reasonable frame rates.
 
 # Demo
  - Procedural GPU-based approach using compute shader:
